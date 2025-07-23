@@ -1,0 +1,6 @@
+@OlinApiSurtido_HostAddress = http://localhost:5208
+
+GET {{OlinApiSurtido_HostAddress}}/api/surtido
+Accept: application/json
+
+###
