@@ -1,6 +1,7 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using MiApi.Models;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
-using MiApi.Models;
+using System.Data;
 
 namespace MiApi.Controller
 {
@@ -8,30 +9,30 @@ namespace MiApi.Controller
     [ApiController]
     public class DocumentoDetalleController : ControllerBase
     {
-        private readonly IConfiguration _configuration;
-        public DocumentoDetalleController(IConfiguration configuration) { _configuration = configuration; }
+        private readonly IConfiguration configuracion;
+        public DocumentoDetalleController(IConfiguration configuration) { configuracion = configuration; }
         [HttpGet("{id}")]
-        public async Task<ActionResult<DocumentoDetalle>> GetDocumento(int id)
+        public async Task<ActionResult<GetterDocumentoDetalle>> GetDetallesDocumento(int id)
         {
-            string? connectionString = _configuration.GetConnectionString("OlinCeConnection");
-            List<DocumentoDetalle> detalles = new List<DocumentoDetalle>();
+            string query = "SELECT D.DOCUMENTO_ID, D.NUMERO_DOCUMENTO, D.ID, D.TIPO_DOCTO, D.PRODUCTO, D.NUMERO_DOCUMENTO, UPPER(D.DESCRIPCION)[DESCRIPCION], D.UNIDADES_SURTIDAS, D.CANTIDAD, UPPER(U.ABREVIACION)[ABREVIACION], C.CODIGO_BARRAS FROM DETALLE_DOCUMENTOS D JOIN UNIDADES U ON D.UNIDAD_MEDIDA = U.ID JOIN PRODUCTOS_PRECIOS C ON D.PRODUCTO = C.PRODUCTO AND D.UNIDAD_BASE = C.UNIDAD_MEDIDA_EQUIVALENCIA  WHERE D.DOCUMENTO_ID = @ID ORDER BY D.ID";
+            string conexionString = configuracion.GetConnectionString("OlinCeConnection") ?? throw new ArgumentNullException("CONEXION STRING NO ENCONTRADO EN CONFIGURACION");
+            List<GetterDocumentoDetalle> detalles = new List<GetterDocumentoDetalle>();
             bool surtido = true;
-            using (SqlConnection connection = new SqlConnection(connectionString))
+            using (SqlConnection conexionSQL = new SqlConnection(conexionString))
             {
-                string query = "SELECT D.DOCUMENTO_ID, D.NUMERO_DOCUMENTO, D.ID, D.TIPO_DOCTO, D.PRODUCTO, D.NUMERO_DOCUMENTO, UPPER(D.DESCRIPCION)[DESCRIPCION], D.UNIDADES_SURTIDAS, D.CANTIDAD, UPPER(U.ABREVIACION)[ABREVIACION], C.CODIGO_BARRAS FROM DETALLE_DOCUMENTOS D JOIN UNIDADES U ON D.UNIDAD_MEDIDA = U.ID JOIN PRODUCTOS_PRECIOS C ON D.PRODUCTO = C.PRODUCTO AND D.UNIDAD_BASE = C.UNIDAD_MEDIDA_EQUIVALENCIA  WHERE D.DOCUMENTO_ID = @ID ORDER BY D.ID";
-                using (SqlCommand command = new SqlCommand(query, connection))
+                using (SqlCommand comandoSQL = new SqlCommand(query, conexionSQL))
                 {
-                    command.Parameters.AddWithValue("@ID", id);
+                    comandoSQL.Parameters.AddWithValue("@ID", id);
                     try
                     {
-                        await connection.OpenAsync();
-                        using (SqlDataReader leectorSQL = await command.ExecuteReaderAsync())
+                        await conexionSQL.OpenAsync();
+                        using (SqlDataReader leectorSQL = await comandoSQL.ExecuteReaderAsync())
                         {
                             if (leectorSQL.HasRows)
                             {
                                 foreach (var columna in leectorSQL)
                                 {
-                                    DocumentoDetalle detalle = new DocumentoDetalle
+                                    GetterDocumentoDetalle detalle = new GetterDocumentoDetalle
                                     {
                                         DOCUMENTO_ID = id,
                                         TIPO_DOCTO = leectorSQL.GetInt32(leectorSQL.GetOrdinal("TIPO_DOCTO")),
@@ -50,13 +51,55 @@ namespace MiApi.Controller
                             }
                         }
                     }
-                    catch (SqlException ex) { return StatusCode(500, $"Error al conectar o consultar la base de datos: {ex.Message}"); }
-                    catch (Exception ex) { return StatusCode(500, $"Error interno del servidor: {ex.Message}"); }
+                    catch (SqlException ex) { return StatusCode(500, $"ERROR AL CONECTAR O CONSULTAR LA BASE DE DATOS: {ex.Message}"); }
+                    catch (Exception ex) { return StatusCode(500, $"ERROR INTERNO DEL SERVIDOR: {ex.Message}"); }
                 }
             }
-            if (detalles.Count == 0) { return StatusCode(404, $"No se encontró ningún documento con el ID: {id}"); }
-            if (surtido) { return StatusCode(204, "El documento ya está completamente surtido."); }
+            if (detalles.Count == 0) { return StatusCode(404, $"NO SE ENCONTRO NINGUN DOCUMENTO CON EL ID: {id}"); }
+            if (surtido) { return StatusCode(410, "EL DOCUMENTO YA ESTÁ COMPLETAMENTE SURTIDO."); }
             return Ok(detalles);
         }
+        [HttpPost("post")]
+        public async Task<IActionResult> SetDetallesDocumento(List<SetterDocumentoDetalle> detallesSetter)
+        {
+            string query = "UPDATE DETALLE_DOCUMENTOS SET UNIDADES_SURTIDAS = @UNIDADES_SURTIDAS, FECHA_ENTREGA = @FECHA_ENTREGA WHERE DOCUMENTO_ID = @DOCUMENTO_ID AND ID = @ID";
+            string conexionString = configuracion.GetConnectionString("OlinCeConnection") ?? throw new ArgumentNullException("CONEXION STRING NO ENCONTRADO EN CONFIGURACION");
+            DateTime fechaHoraActual = DateTime.Now;
+            Console.WriteLine(detallesSetter.Count);
+            if (detallesSetter == null || detallesSetter.Count < 1) { return BadRequest("LA LISTA NO PUEDE ESTAR VACIA"); }
+            using (SqlConnection conexionSQL = new SqlConnection(conexionString))
+            {
+                await conexionSQL.OpenAsync();
+                using (SqlTransaction transaccion = conexionSQL.BeginTransaction())
+                {
+                    try
+                    {
+                        foreach (SetterDocumentoDetalle detalle in detallesSetter)
+                        {
+                            using (SqlCommand comandoSQL = new SqlCommand(query, conexionSQL, transaccion))
+                            {
+                                comandoSQL.Parameters.AddWithValue("@UNIDADES_SURTIDAS", detalle.UNIDADES_SURTIDAS);
+                                comandoSQL.Parameters.AddWithValue("@FECHA_ENTREGA", fechaHoraActual);
+                                comandoSQL.Parameters.AddWithValue("@DOCUMENTO_ID", detalle.DOCUMENTO_ID);
+                                comandoSQL.Parameters.AddWithValue("@ID", detalle.ID);
+                                await comandoSQL.ExecuteNonQueryAsync();
+                            }
+                        }
+                        transaccion.Commit();
+                        return Ok("Documentos updated successfully.");
+                    }
+                    catch (SqlException ex)
+                    {
+                        transaccion.Rollback();
+                        return StatusCode(500, $"ERROR AL CONSULTAR BASE DE DATOS: {ex.Message}");
+                    }
+                    catch (Exception ex)
+                    {
+                        transaccion.Rollback();
+                        return StatusCode(500, $"ERROR INTERNO DEL SERVIDOR: {ex.Message}");
+                    }
+                }
+            }
+        }
     }
-}
+} 

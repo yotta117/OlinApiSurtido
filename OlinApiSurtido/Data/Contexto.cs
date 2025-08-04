@@ -8,6 +8,6 @@ namespace MiApi.Context
         public Contexto(DbContextOptions<Contexto> options) : base(options)
         {
         } 
-        public DbSet<DocumentoDetalle> Detalle { get; set; }
+        public DbSet<GetterDocumentoDetalle> Detalle { get; set; }
     }
 }
