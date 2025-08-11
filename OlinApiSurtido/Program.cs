@@ -4,6 +4,8 @@ using MiApi.Context;
 
 var builder = WebApplication.CreateBuilder(args);
 
+if (builder.Environment.IsProduction()) { builder.WebHost.UseUrls("http://192.168.0.118:5000", "https://192.168.0.118:5000"); }
+
 var connectionString = builder.Configuration.GetConnectionString("OlinCeConnection");
 builder.Services.AddDbContext<Contexto>(options => options.UseSqlServer(connectionString));
 
