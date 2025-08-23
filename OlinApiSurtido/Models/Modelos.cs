@@ -12,7 +12,6 @@
         public float CANTIDAD { get; set; }
         public required string ABREVIACION { get; set; }
         public string? CODIGO_BARRAS { get; set; }
-        public DateTime FECHA_ENTREGA { get; } = DateTime.Now;
     }
     public class SetterDocumentoDetalle
     {

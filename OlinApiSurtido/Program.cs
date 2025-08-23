@@ -1,5 +1,7 @@
-using Microsoft.EntityFrameworkCore;
 using MiApi.Context;
+using MiApi.Interfaces;
+using MiApi.Repositories;
+using Microsoft.EntityFrameworkCore;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -11,6 +13,7 @@ builder.Services.AddDbContext<Contexto>(options => options.UseSqlServer(connecti
 
 
 // Add services to the container.
+builder.Services.AddScoped<IRepositorioDocumentoDetalle, RepositorioDocumentoDetalle>();
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
