@@ -17,14 +17,14 @@ namespace MiApi.Controller
         {
 
             var (detalles, esSurtido, errorMessage) = await repositorio.GetDetallesPorDocumentoIdAsync(id);
-            if (!string.IsNullOrEmpty(errorMessage)) return StatusCode(500, new { message = errorMessage }); // Use a consistent error object
+            if (!string.IsNullOrEmpty(errorMessage)) return StatusCode(500, new { message = errorMessage });
             if (detalles == null || detalles.Count == 0) return NotFound(new { message = $"No se encontró ningún documento con el ID: {id}" });
-            if (esSurtido) return Conflict(new { message = "El documento ya está completamente surtido." }); // 409 Conflict is more appropriate than 410 Gone
+            if (esSurtido) return Conflict(new { message = "El documento ya está completamente surtido." }); 
             return Ok(detalles);
         }
 
         [HttpPost]
-        public async Task<IActionResult> SetDetallesDocumento([FromBody] List<SetterDocumentoDetalle> detallesSetter) // Add [FromBody]
+        public async Task<IActionResult> SetDetallesDocumento([FromBody] List<SetterDocumentoDetalle> detallesSetter)
         {
             if (detallesSetter == null || detallesSetter.Count == 0) { return BadRequest(new { message = "La lista de detalles no puede estar vacía." }); }
             try

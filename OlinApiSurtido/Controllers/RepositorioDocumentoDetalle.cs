@@ -19,7 +19,7 @@ namespace MiApi.Repositories
             var detalles = new List<GetterDocumentoDetalle>();
             bool surtido = true;
             string errorMessage = string.Empty;
-
+            //TODO RETRABAJAR LAS QUERY PARA QUE CONSULTE PRIMERO EL ENCABEZADO Y LUEGO LOS DETALLES
             string query = "SELECT D.DOCUMENTO_ID, D.NUMERO_DOCUMENTO, D.ID, D.TIPO_DOCTO, D.PRODUCTO, D.NUMERO_DOCUMENTO, UPPER(D.DESCRIPCION)[DESCRIPCION], D.UNIDADES_SURTIDAS, D.CANTIDAD, UPPER(U.ABREVIACION)[ABREVIACION], C.CODIGO_BARRAS FROM DETALLE_DOCUMENTOS D JOIN UNIDADES U ON D.UNIDAD_MEDIDA = U.ID JOIN PRODUCTOS_PRECIOS C ON D.PRODUCTO = C.PRODUCTO AND D.UNIDAD_BASE = C.UNIDAD_MEDIDA_EQUIVALENCIA  WHERE D.DOCUMENTO_ID = @ID ORDER BY D.ID";
             string conexionString = configuracion.GetConnectionString("OlinCeConnection") ?? throw new ArgumentNullException("Connection string not found.");
 
