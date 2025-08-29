@@ -23,19 +23,27 @@ namespace MiApi.Controller
             return Ok(detalles);
         }
 
-        [HttpPost]
-        public async Task<IActionResult> SetDetallesDocumento([FromBody] List<SetterDocumentoDetalle> detallesSetter)
+        [HttpPatch("{documentoId}")]
+        public async Task<IActionResult> UpdateSurtidoDetalle(int documentoId, [FromBody] List<SetterSurtidos_Detalle> detallesSurtidos)
         {
-            if (detallesSetter == null || detallesSetter.Count == 0) { return BadRequest(new { message = "La lista de detalles no puede estar vacía." }); }
+            if (detallesSurtidos == null || detallesSurtidos.Count == 0)
+            {
+                return BadRequest(new { message = "La lista de detalles no puede estar vacía." });
+            }
             try
             {
-                DateTime fechaHoraActual = DateTime.Now;
-                bool updateSuccess = await repositorio.ActualizarDetallesAsync(detallesSetter, fechaHoraActual);
-                if (!updateSuccess) { return StatusCode(500, new { message = "No se pudieron actualizar todos los detalles." }); }
-                return Ok(new { message = "Detalles actualizados exitosamente.", fechaActualizacion = fechaHoraActual });
+                // The repository will now handle the logic, including the date.
+                bool updateSuccess = await repositorio.ActualizarSurtidoAsync(documentoId, detallesSurtidos);
+                if (!updateSuccess)
+                {
+                    return StatusCode(500, new { message = "No se pudieron actualizar todos los detalles." });
+                }
+                return Ok(new { message = "Detalles de surtido actualizados exitosamente." });
             }
-            catch (SqlException ex) { return StatusCode(500, new { message = $"Error de base de datos: {ex.Message}" }); }
-            catch (Exception ex) { return StatusCode(500, new { message = $"Error interno del servidor: {ex.Message}" }); }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = $"Error interno del servidor: {ex.Message}" });
+            }
         }
     }
 }
