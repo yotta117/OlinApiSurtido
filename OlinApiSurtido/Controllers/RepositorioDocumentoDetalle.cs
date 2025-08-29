@@ -2,6 +2,7 @@
 using MiApi.Interfaces;
 using MiApi.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Data;
 
 namespace MiApi.Repositories
 {
@@ -19,23 +20,30 @@ namespace MiApi.Repositories
             string errorMessage = string.Empty;
             try
             {
+                // Step 1: Check the header table
+                var surtidoEncabezado = await _contexto.SurtidosEncabezado.FindAsync(id);
+                if (surtidoEncabezado != null && surtidoEncabezado.COMPLETADO)
+                {
+                    return (new List<GetterDocumentoDetalle>(), true, "El documento ya está completamente surtido.");
+                }
+
+                // Step 2: Get the details if not completed
                 var query = from d in _contexto.DetalleDocumentos
                             join u in _contexto.Unidades on d.UNIDAD_MEDIDA equals u.ID
-                            join c in _contexto.ProductosPrecios on new { p = d.PRODUCTO, um = d.UNIDAD_BASE } equals new { p = c.PRODUCTO, um = c.UNIDAD_MEDIDA_EQUIVALENCIA }
+                            join pp in _contexto.ProductosPrecios on new { p = d.PRODUCTO, um = d.UNIDAD_BASE } equals new { p = pp.PRODUCTO, um = pp.UNIDAD_MEDIDA_EQUIVALENCIA }
+                            join sd in _contexto.SurtidosDetalle on new { d.DOCUMENTO_ID, d.ID } equals new { sd.DOCUMENTO_ID, sd.ID } into surtidoJoin
+                            from sd in surtidoJoin.DefaultIfEmpty() // LEFT JOIN
                             where d.DOCUMENTO_ID == id
                             orderby d.ID
                             select new GetterDocumentoDetalle
                             {
-                                DOCUMENTO_ID = d.DOCUMENTO_ID,
-                                TIPO_DOCTO = d.TIPO_DOCTO,
-                                NUMERO_DOCUMENTO = d.NUMERO_DOCUMENTO ?? string.Empty,
                                 ID = d.ID,
                                 PRODUCTO = d.PRODUCTO,
-                                DESCRIPCION = d.DESCRIPCION != null ? d.DESCRIPCION.ToUpper() : string.Empty,
-                                UNIDADES_SURTIDAS = d.UNIDADES_SURTIDAS,
+                                DESCRIPCION = d.DESCRIPCION != null ? d.DESCRIPCION.ToUpper() : "",
+                                SURTIDAS = sd != null ? (float?)sd.SURTIDAS : null,
                                 CANTIDAD = d.CANTIDAD,
-                                ABREVIACION = u.ABREVIACION != null ? u.ABREVIACION.ToUpper() : string.Empty,
-                                CODIGO_BARRAS = c.CODIGO_BARRAS
+                                ABREVIACION = u.ABREVIACION != null ? u.ABREVIACION.ToUpper() : "",
+                                CODIGO_BARRAS = pp.CODIGO_BARRAS
                             };
 
                 var detalles = await query.ToListAsync();
@@ -45,9 +53,7 @@ namespace MiApi.Repositories
                     return (null, false, $"No se encontró ningún documento con el ID: {id}");
                 }
 
-                bool esSurtido = detalles.All(d => d.UNIDADES_SURTIDAS >= d.CANTIDAD);
-
-                return (detalles, esSurtido, errorMessage);
+                return (detalles, false, errorMessage);
             }
             catch (Exception ex)
             {
@@ -56,24 +62,45 @@ namespace MiApi.Repositories
             }
         }
 
-        public async Task<bool> ActualizarDetallesAsync(List<SetterDocumentoDetalle> detallesSetter, DateTime fechaHoraActual)
+        public async Task<bool> ActualizarSurtidoAsync(int documentoId, List<SetterSurtidos_Detalle> detallesSurtidos)
         {
+            using var transaction = await _contexto.Database.BeginTransactionAsync();
             try
             {
-                foreach (var detalle in detallesSetter)
+                foreach (var detalleDto in detallesSurtidos)
                 {
-                    var entidad = await _contexto.DetalleDocumentos.FindAsync(detalle.DOCUMENTO_ID, detalle.ID);
+                    // Use the composite key to find the entity
+                    var entidad = await _contexto.SurtidosDetalle.FindAsync(documentoId, detalleDto.ID);
+
                     if (entidad != null)
                     {
-                        entidad.UNIDADES_SURTIDAS = detalle.UNIDADES_SURTIDAS;
-                        entidad.FECHA_ENTREGA = fechaHoraActual;
+                        // Update existing entity
+                        entidad.SURTIDAS = detalleDto.SURTIDAS;
+                        entidad.CHECADOR = detalleDto.CHECADOR;
+                        entidad.FIN_SURTIDO = DateTime.Now;
+                    }
+                    else
+                    {
+                        // Insert new entity, ensuring the composite key is set
+                        var nuevaEntidad = new SurtidoDetalle
+                        {
+                            DOCUMENTO_ID = documentoId,
+                            ID = detalleDto.ID,
+                            SURTIDAS = detalleDto.SURTIDAS,
+                            CHECADOR = detalleDto.CHECADOR,
+                            FIN_SURTIDO = DateTime.Now
+                        };
+                        _contexto.SurtidosDetalle.Add(nuevaEntidad);
                     }
                 }
-                int lineasAfectadas = await _contexto.SaveChangesAsync();
-                return lineasAfectadas >= detallesSetter.Count;
+
+                await _contexto.SaveChangesAsync();
+                await transaction.CommitAsync();
+                return true;
             }
             catch
             {
+                await transaction.RollbackAsync();
                 return false;
             }
         }

@@ -1,10 +1,10 @@
-﻿using Microsoft.EntityFrameworkCore;
-using System.ComponentModel.DataAnnotations.Schema;
+﻿using System.ComponentModel.DataAnnotations.Schema;
 
 namespace MiApi.Models
 {
+    // --- Entities ---
+
     [Table("DETALLE_DOCUMENTOS")]
-    [PrimaryKey(nameof(DOCUMENTO_ID), nameof(ID))]
     public class DetalleDocumento
     {
         public int DOCUMENTO_ID { get; set; }
@@ -13,11 +13,9 @@ namespace MiApi.Models
         public int TIPO_DOCTO { get; set; }
         public int PRODUCTO { get; set; }
         public string? DESCRIPCION { get; set; }
-        public float UNIDADES_SURTIDAS { get; set; }
         public float CANTIDAD { get; set; }
         public int UNIDAD_MEDIDA { get; set; }
         public int UNIDAD_BASE { get; set; }
-        public DateTime? FECHA_ENTREGA { get; set; }
     }
 
     [Table("UNIDADES")]
@@ -28,7 +26,6 @@ namespace MiApi.Models
     }
 
     [Table("PRODUCTOS_PRECIOS")]
-    [PrimaryKey(nameof(PRODUCTO), nameof(UNIDAD_MEDIDA_EQUIVALENCIA))]
     public class ProductoPrecio
     {
         public int PRODUCTO { get; set; }
@@ -36,24 +33,42 @@ namespace MiApi.Models
         public string? CODIGO_BARRAS { get; set; }
     }
 
+    [Table("SURTIDOS_ENCABEZADO")]
+    public class SurtidoEncabezado
+    {
+        public int ID { get; set; }
+        public bool COMPLETADO { get; set; }
+    }
+
+    [Table("SURTIDOS_DETALLE")]
+    public class SurtidoDetalle
+    {
+        public int DOCUMENTO_ID { get; set; }
+        public int ID { get; set; }
+        public float SURTIDAS { get; set; }
+        public int CHECADOR { get; set; }
+        public DateTime FIN_SURTIDO { get; set; }
+    }
+
+    // --- DTOs ---
+
+    // DTO for the GET endpoint response, matches the user's requested SELECT query
     public class GetterDocumentoDetalle
     {
-        public int DOCUMENTO_ID { get; set; }
-        public required string NUMERO_DOCUMENTO { get; set; }
-        public int TIPO_DOCTO { get; set; }
         public int ID { get; set; }
         public int PRODUCTO { get; set; }
-        public required string DESCRIPCION { get; set; }
-        public float UNIDADES_SURTIDAS { get; set; }
+        public string DESCRIPCION { get; set; } = string.Empty;
+        public float? SURTIDAS { get; set; } // Nullable because of LEFT JOIN
         public float CANTIDAD { get; set; }
-        public required string ABREVIACION { get; set; }
+        public string ABREVIACION { get; set; } = string.Empty;
         public string? CODIGO_BARRAS { get; set; }
     }
-    public class SetterDocumentoDetalle
+
+    // DTO for the PATCH endpoint request
+    public class SetterSurtidos_Detalle
     {
-        public int DOCUMENTO_ID { get; set; }
         public int ID { get; set; }
-        public float UNIDADES_SURTIDAS { get; set; }
-        public DateTime FECHA_ENTREGA { get; } = DateTime.Now;
+        public float SURTIDAS { get; set; }
+        public int CHECADOR { get; set; }
     }
 }
