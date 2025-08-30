@@ -17,19 +17,22 @@ namespace MiApi.Context
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<DetalleDocumento>()
-                .HasKey(dd => new { dd.DOCUMENTO_ID, dd.ID });
+                .HasKey(dd => dd.ID);
 
             modelBuilder.Entity<ProductoPrecio>()
                 .HasKey(pp => new { pp.PRODUCTO, pp.UNIDAD_MEDIDA_EQUIVALENCIA });
 
             modelBuilder.Entity<SurtidoDetalle>()
-                .HasKey(sd => new { sd.DOCUMENTO_ID, sd.ID });
+                .HasKey(sd => sd.ID);
 
-            // Define the one-to-one relationship between DetalleDocumento and SurtidoDetalle
+            // Define the one-to-one relationship using the navigation properties.
+            // This explicitly tells EF Core that a DetalleDocumento has one SurtidoDetalle,
+            // and a SurtidoDetalle has one DetalleDocumento, and the foreign key is on
+            // SurtidoDetalle.ID, which points to DetalleDocumento.ID.
             modelBuilder.Entity<DetalleDocumento>()
-                .HasOne<SurtidoDetalle>()
-                .WithOne()
-                .HasForeignKey<SurtidoDetalle>(sd => new { sd.DOCUMENTO_ID, sd.ID });
+                .HasOne(d => d.SurtidoDetalle)
+                .WithOne(s => s.DetalleDocumento)
+                .HasForeignKey<SurtidoDetalle>(s => s.ID);
         }
     }
 }

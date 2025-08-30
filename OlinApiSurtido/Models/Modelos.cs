@@ -16,6 +16,8 @@ namespace MiApi.Models
         public float CANTIDAD { get; set; }
         public int UNIDAD_MEDIDA { get; set; }
         public int UNIDAD_BASE { get; set; }
+
+        public virtual SurtidoDetalle? SurtidoDetalle { get; set; }
     }
 
     [Table("UNIDADES")]
@@ -43,11 +45,12 @@ namespace MiApi.Models
     [Table("SURTIDOS_DETALLE")]
     public class SurtidoDetalle
     {
-        public int DOCUMENTO_ID { get; set; }
         public int ID { get; set; }
         public float SURTIDAS { get; set; }
         public int CHECADOR { get; set; }
         public DateTime FIN_SURTIDO { get; set; }
+
+        public virtual DetalleDocumento? DetalleDocumento { get; set; }
     }
 
     // --- DTOs ---

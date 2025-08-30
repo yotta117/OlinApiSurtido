@@ -27,26 +27,29 @@ namespace MiApi.Repositories
                     return (new List<GetterDocumentoDetalle>(), true, "El documento ya está completamente surtido.");
                 }
 
-                // Step 2: Get the details if not completed
-                var query = from d in _contexto.DetalleDocumentos
-                            join u in _contexto.Unidades on d.UNIDAD_MEDIDA equals u.ID
-                            join pp in _contexto.ProductosPrecios on new { p = d.PRODUCTO, um = d.UNIDAD_BASE } equals new { p = pp.PRODUCTO, um = pp.UNIDAD_MEDIDA_EQUIVALENCIA }
-                            join sd in _contexto.SurtidosDetalle on new { d.DOCUMENTO_ID, d.ID } equals new { sd.DOCUMENTO_ID, sd.ID } into surtidoJoin
-                            from sd in surtidoJoin.DefaultIfEmpty() // LEFT JOIN
-                            where d.DOCUMENTO_ID == id
-                            orderby d.ID
-                            select new GetterDocumentoDetalle
-                            {
-                                ID = d.ID,
-                                PRODUCTO = d.PRODUCTO,
-                                DESCRIPCION = d.DESCRIPCION != null ? d.DESCRIPCION.ToUpper() : "",
-                                SURTIDAS = sd != null ? (float?)sd.SURTIDAS : null,
-                                CANTIDAD = d.CANTIDAD,
-                                ABREVIACION = u.ABREVIACION != null ? u.ABREVIACION.ToUpper() : "",
-                                CODIGO_BARRAS = pp.CODIGO_BARRAS
-                            };
-
-                var detalles = await query.ToListAsync();
+                // Step 2: Get the details if not completed, using Include for related data
+                var detalles = await _contexto.DetalleDocumentos
+                    .Include(d => d.SurtidoDetalle) // Eager load the related SurtidoDetalle
+                    .Where(d => d.DOCUMENTO_ID == id)
+                    .OrderBy(d => d.ID)
+                    .Select(d => new GetterDocumentoDetalle
+                    {
+                        ID = d.ID,
+                        PRODUCTO = d.PRODUCTO,
+                        DESCRIPCION = d.DESCRIPCION != null ? d.DESCRIPCION.ToUpper() : "",
+                        SURTIDAS = d.SurtidoDetalle != null ? (float?)d.SurtidoDetalle.SURTIDAS : null,
+                        CANTIDAD = d.CANTIDAD,
+                        // The following joins are still needed as they are not on the main entity
+                        ABREVIACION = _contexto.Unidades
+                                        .Where(u => u.ID == d.UNIDAD_MEDIDA)
+                                        .Select(u => u.ABREVIACION != null ? u.ABREVIACION.ToUpper() : "")
+                                        .FirstOrDefault() ?? "",
+                        CODIGO_BARRAS = _contexto.ProductosPrecios
+                                        .Where(pp => pp.PRODUCTO == d.PRODUCTO && pp.UNIDAD_MEDIDA_EQUIVALENCIA == d.UNIDAD_BASE)
+                                        .Select(pp => pp.CODIGO_BARRAS)
+                                        .FirstOrDefault()
+                    })
+                    .ToListAsync();
 
                 if (detalles == null || detalles.Count == 0)
                 {
@@ -67,10 +70,22 @@ namespace MiApi.Repositories
             using var transaction = await _contexto.Database.BeginTransactionAsync();
             try
             {
+                var validIds = await _contexto.DetalleDocumentos
+                                              .Where(d => d.DOCUMENTO_ID == documentoId)
+                                              .Select(d => d.ID)
+                                              .ToListAsync();
+
                 foreach (var detalleDto in detallesSurtidos)
                 {
-                    // Use the composite key to find the entity
-                    var entidad = await _contexto.SurtidosDetalle.FindAsync(documentoId, detalleDto.ID);
+                    // Validation: Ensure the detail ID belongs to the document ID
+                    if (!validIds.Contains(detalleDto.ID))
+                    {
+                        // ID from DTO does not belong to the document in the URL, rollback and fail.
+                        await transaction.RollbackAsync();
+                        return false;
+                    }
+
+                    var entidad = await _contexto.SurtidosDetalle.FindAsync(detalleDto.ID);
 
                     if (entidad != null)
                     {
@@ -81,10 +96,9 @@ namespace MiApi.Repositories
                     }
                     else
                     {
-                        // Insert new entity, ensuring the composite key is set
+                        // Insert new entity
                         var nuevaEntidad = new SurtidoDetalle
                         {
-                            DOCUMENTO_ID = documentoId,
                             ID = detalleDto.ID,
                             SURTIDAS = detalleDto.SURTIDAS,
                             CHECADOR = detalleDto.CHECADOR,
