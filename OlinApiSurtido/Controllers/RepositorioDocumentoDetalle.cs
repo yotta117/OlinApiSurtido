@@ -27,33 +27,56 @@ namespace MiApi.Repositories
                     return (new List<GetterDocumentoDetalle>(), true, "El documento ya está completamente surtido.");
                 }
 
-                // Step 2: Get the details if not completed, using Include for related data
-                var detalles = await _contexto.DetalleDocumentos
-                    .Include(d => d.SurtidoDetalle) // Eager load the related SurtidoDetalle
-                    .Where(d => d.DOCUMENTO_ID == id)
-                    .OrderBy(d => d.ID)
-                    .Select(d => new GetterDocumentoDetalle
-                    {
-                        ID = d.ID,
-                        PRODUCTO = d.PRODUCTO,
-                        DESCRIPCION = d.DESCRIPCION != null ? d.DESCRIPCION.ToUpper() : "",
-                        SURTIDAS = d.SurtidoDetalle != null ? (float?)d.SurtidoDetalle.SURTIDAS : null,
-                        CANTIDAD = d.CANTIDAD,
-                        // The following joins are still needed as they are not on the main entity
-                        ABREVIACION = _contexto.Unidades
-                                        .Where(u => u.ID == d.UNIDAD_MEDIDA)
-                                        .Select(u => u.ABREVIACION != null ? u.ABREVIACION.ToUpper() : "")
-                                        .FirstOrDefault() ?? "",
-                        CODIGO_BARRAS = _contexto.ProductosPrecios
-                                        .Where(pp => pp.PRODUCTO == d.PRODUCTO && pp.UNIDAD_MEDIDA_EQUIVALENCIA == d.UNIDAD_BASE)
-                                        .Select(pp => pp.CODIGO_BARRAS)
-                                        .FirstOrDefault()
-                    })
-                    .ToListAsync();
+                // Step 2: Refactored query using explicit LEFT JOINs to match the SQL query.
+                var query = from d in _contexto.DetalleDocumentos
+                            where d.DOCUMENTO_ID == id
+
+                            join sd_join in _contexto.SurtidosDetalle on d.ID equals sd_join.ID into sd_group
+                            from sd in sd_group.DefaultIfEmpty() // LEFT JOIN
+
+                            join pp_join in _contexto.ProductosPrecios
+                                on new { ProductId = d.PRODUCTO, UnitId = d.UNIDAD_BASE }
+                                equals new { ProductId = pp_join.PRODUCTO, UnitId = pp_join.UNIDAD_MEDIDA_EQUIVALENCIA }
+                                into pp_group
+                            from pp in pp_group.DefaultIfEmpty() // LEFT JOIN
+
+                            join u_join in _contexto.Unidades on d.UNIDAD_MEDIDA equals u_join.ID into u_group
+                            from u in u_group.DefaultIfEmpty() // LEFT JOIN
+
+                            orderby d.ID
+                            select new GetterDocumentoDetalle
+                            {
+                                ID = d.ID,
+                                PRODUCTO = d.PRODUCTO,
+                                DESCRIPCION = d.DESCRIPCION != null ? d.DESCRIPCION.ToUpper() : "",
+                                SURTIDAS = sd != null ? (float?)sd.SURTIDAS : null,
+                                CANTIDAD = d.CANTIDAD,
+                                ABREVIACION = u != null && u.ABREVIACION != null ? u.ABREVIACION.ToUpper() : null,
+                                CODIGO_BARRAS = pp != null ? pp.CODIGO_BARRAS : null
+                            };
+
+                var detalles = await query.ToListAsync();
 
                 if (detalles == null || detalles.Count == 0)
                 {
                     return (null, false, $"No se encontró ningún documento con el ID: {id}");
+                }
+
+                // Step 3: Validate that all required fields have non-null values.
+                foreach (var detalle in detalles)
+                {
+                    if (detalle.SURTIDAS == null)
+                    {
+                        return (null, false, $"Datos incompletos: El producto con ID {detalle.PRODUCTO} (Detalle ID: {detalle.ID}) no tiene valor de 'SURTIDAS'.");
+                    }
+                    if (detalle.ABREVIACION == null)
+                    {
+                        return (null, false, $"Datos incompletos: El producto con ID {detalle.PRODUCTO} (Detalle ID: {detalle.ID}) no tiene valor de 'ABREVIACION'.");
+                    }
+                    if (detalle.CODIGO_BARRAS == null)
+                    {
+                        return (null, false, $"Datos incompletos: El producto con ID {detalle.PRODUCTO} (Detalle ID: {detalle.ID}) no tiene valor de 'CODIGO_BARRAS'.");
+                    }
                 }
 
                 return (detalles, false, errorMessage);
