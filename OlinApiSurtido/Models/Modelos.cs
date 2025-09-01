@@ -48,6 +48,7 @@ namespace MiApi.Models
         public int ID { get; set; }
         public float? SURTIDAS { get; set; }
         public int? CHECADOR { get; set; }
+        public DateTime INICIO_SURTIDO { get; set; }
         public DateTime? FIN_SURTIDO { get; set; }
 
         public virtual DetalleDocumento? DetalleDocumento { get; set; }
