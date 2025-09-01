@@ -29,14 +29,13 @@ namespace MiApi.Repositories
 
                 // Step 2: Refactored query using explicit LEFT JOINs to match the SQL query.
                 var query = from d in _contexto.DetalleDocumentos
-                            where d.DOCUMENTO_ID == id
-
+                            where d.DOCUMENTO_ID == id && d.PRODUCTO != null // Exclude details without a product
                             join sd_join in _contexto.SurtidosDetalle on d.ID equals sd_join.ID into sd_group
                             from sd in sd_group.DefaultIfEmpty() // LEFT JOIN
 
                             join pp_join in _contexto.ProductosPrecios
                                 on new { ProductId = d.PRODUCTO, UnitId = d.UNIDAD_BASE }
-                                equals new { ProductId = pp_join.PRODUCTO, UnitId = pp_join.UNIDAD_MEDIDA_EQUIVALENCIA }
+                                equals new { ProductId = (int?)pp_join.PRODUCTO, UnitId = pp_join.UNIDAD_MEDIDA_EQUIVALENCIA }
                                 into pp_group
                             from pp in pp_group.DefaultIfEmpty() // LEFT JOIN
 
@@ -47,7 +46,7 @@ namespace MiApi.Repositories
                             select new GetterDocumentoDetalle
                             {
                                 ID = d.ID,
-                                PRODUCTO = d.PRODUCTO,
+                                PRODUCTO = d.PRODUCTO.Value, // Safely access Value after null check
                                 DESCRIPCION = d.DESCRIPCION != null ? d.DESCRIPCION.ToUpper() : "",
                                 SURTIDAS = sd != null ? (float?)sd.SURTIDAS : null,
                                 CANTIDAD = d.CANTIDAD,
