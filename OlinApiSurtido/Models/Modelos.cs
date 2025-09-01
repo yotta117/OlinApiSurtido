@@ -63,7 +63,7 @@ namespace MiApi.Models
         public string DESCRIPCION { get; set; } = string.Empty;
         public float? SURTIDAS { get; set; } // Nullable because of LEFT JOIN
         public float CANTIDAD { get; set; }
-        public string ABREVIACION { get; set; } = string.Empty;
+        public string? ABREVIACION { get; set; } // Nullable to precisely match JOIN results
         public string? CODIGO_BARRAS { get; set; }
     }
 
