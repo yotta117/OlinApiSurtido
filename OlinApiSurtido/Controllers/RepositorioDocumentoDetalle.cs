@@ -109,25 +109,70 @@ namespace MiApi.Repositories
 
                     var entidad = await _contexto.SurtidosDetalle.FindAsync(detalleDto.ID);
 
+                    // For a true PATCH, we only update existing entities.
+                    // If the entity does not exist, we ignore it and move on.
                     if (entidad != null)
                     {
                         // Update existing entity
                         entidad.SURTIDAS = detalleDto.SURTIDAS;
                         entidad.CHECADOR = detalleDto.CHECADOR;
-                        entidad.FIN_SURTIDO = DateTime.Now;
+                        entidad.FIN_SURTIDO = DateTime.Now; // Update the timestamp on modification
                     }
-                    else
+                }
+
+                await _contexto.SaveChangesAsync();
+                await transaction.CommitAsync();
+                return true;
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                return false;
+            }
+        }
+
+        public async Task<bool> ReemplazarSurtidoAsync(int documentoId, List<SetterSurtidos_Detalle> detallesSurtidos)
+        {
+            using var transaction = await _contexto.Database.BeginTransactionAsync();
+            try
+            {
+                // Step 1: Get all detail IDs for the given document ID
+                var detailIds = await _contexto.DetalleDocumentos
+                                               .Where(d => d.DOCUMENTO_ID == documentoId)
+                                               .Select(d => d.ID)
+                                               .ToListAsync();
+
+                if (!detailIds.Any())
+                {
+                    // No details found for this document, so nothing to replace.
+                    // Depending on requirements, you might return true or false.
+                    // Returning true as there's nothing to do.
+                    return true;
+                }
+
+                // Step 2: Delete all existing SurtidoDetalle for this document
+                var existingSurtidos = _contexto.SurtidosDetalle.Where(sd => detailIds.Contains(sd.ID));
+                _contexto.SurtidosDetalle.RemoveRange(existingSurtidos);
+
+                // Step 3: Insert the new SurtidoDetalle records
+                foreach (var detalleDto in detallesSurtidos)
+                {
+                    // Optional: Validate that the provided detail ID belongs to the document
+                    if (!detailIds.Contains(detalleDto.ID))
                     {
-                        // Insert new entity
-                        var nuevaEntidad = new SurtidoDetalle
-                        {
-                            ID = detalleDto.ID,
-                            SURTIDAS = detalleDto.SURTIDAS,
-                            CHECADOR = detalleDto.CHECADOR,
-                            FIN_SURTIDO = DateTime.Now
-                        };
-                        _contexto.SurtidosDetalle.Add(nuevaEntidad);
+                        // One of the provided details doesn't belong to this document, rollback.
+                        await transaction.RollbackAsync();
+                        return false;
                     }
+                    var nuevaEntidad = new SurtidoDetalle
+                    {
+                        ID = detalleDto.ID,
+                        SURTIDAS = detalleDto.SURTIDAS,
+                        CHECADOR = detalleDto.CHECADOR,
+                        INICIO_SURTIDO = DateTime.Now, // Set the start time
+                        FIN_SURTIDO = DateTime.Now   // Set the end time
+                    };
+                    _contexto.SurtidosDetalle.Add(nuevaEntidad);
                 }
 
                 await _contexto.SaveChangesAsync();

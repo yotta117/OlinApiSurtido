@@ -45,5 +45,29 @@ namespace MiApi.Controller
                 return StatusCode(500, new { message = $"Error interno del servidor: {ex.Message}" });
             }
         }
+
+        [HttpPut("{documentoId}")]
+        public async Task<IActionResult> ReplaceSurtidoDetalle(int documentoId, [FromBody] List<SetterSurtidos_Detalle> detallesSurtidos)
+        {
+            if (detallesSurtidos == null || detallesSurtidos.Count == 0)
+            {
+                return BadRequest(new { message = "La lista de detalles no puede estar vacía." });
+            }
+            try
+            {
+                bool success = await repositorio.ReemplazarSurtidoAsync(documentoId, detallesSurtidos);
+                if (!success)
+                {
+                    // Using a 404 or 400 might be more specific if validation fails inside the repo
+                    return StatusCode(500, new { message = "No se pudieron reemplazar los detalles. Verifique que los IDs de detalle pertenezcan al documento." });
+                }
+                return Ok(new { message = "Detalles de surtido reemplazados exitosamente." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = $"Error interno del servidor: {ex.Message}" });
+            }
+        }
+
     }
 }
